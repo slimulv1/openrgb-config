@@ -67,20 +67,89 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 
 > ✅ **Đã sẵn sàng** trên Core64 (máy tham chiếu). Các bước dưới đây dành cho máy mới / cài lại.
 
-### Bước 1 — Cài đặt phần mềm
+### Bước 1 — Chuẩn bị hệ thống: công cụ I2C
+
+OpenRGB truy cập RAM/GPU/mainboard qua bus I2C/SMBus. Cài `i2c-tools` và nạp module:
 
 ```bash
-# OpenRGB
-yay -S openrgb                # hoặc: paru -S openrgb
+sudo pacman -S i2c-tools
 
-# Lian Li daemon (bản Linux thay thế L-Connect 3)
-git clone https://github.com/slimulv1/lian-li-linux
-cd lian-li-linux && make      # build → cài binary lianli-daemon vào /usr/bin/
+# nạp module ngay lần này
+sudo modprobe i2c-dev
+sudo modprobe i2c-i801
+
+# tự nạp mỗi lần boot
+sudo tee /etc/modules-load.d/i2c.conf <<'EOF'
+i2c-dev
+i2c-i801
+EOF
 ```
 
-> ⚠️ `lianli-daemon` phải có trong `PATH` (`which lianli-daemon`). Repo này là fork của `lian-li-linux`.
+> 📚 Tham khảo: [OpenRGB SMBusAccess Documentation](https://github.com/CalcProgrammer1/OpenRGB/blob/master/Documentation/SMBusAccess.md)
 
-### Bước 2 — Sao chép file vào đúng vị trí
+---
+
+### Bước 2 — Xử lý module `spd5118` (RAM DDR5)
+
+Với RAM DDR5, module kernel `spd5118` chiếm quyền truy cập SPD/SMBus → OpenRGB không nhận diện được RAM. **Chọn 1 trong 2 cách:**
+
+#### Cách 1 (khuyến nghị): Blacklist `spd5118`
+
+```bash
+echo "blacklist spd5118" | sudo tee -a /etc/modprobe.d/blacklist-spd5118.conf
+
+# cập nhật initramfs rồi reboot
+sudo mkinitcpio -P
+```
+
+> ✅ **Máy tham chiếu Core64 đang dùng cách này** — `/etc/modprobe.d/blacklist-spd5118.conf` đã có, `spd5118` không load, OpenRGB detect RAM bình thường.
+
+#### Cách 2 (thay thế Cách 1): gỡ module bằng systemd service
+
+Nếu không muốn blacklist, dùng service `rmmod` lúc boot:
+
+```ini
+# /etc/systemd/system/rmmod-spd5118.service
+[Unit]
+Description=Unload spd5118 module on startup
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/rmmod spd5118
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+sudo nano /etc/systemd/system/rmmod-spd5118.service   # dán nội dung trên
+sudo chmod 664 /etc/systemd/system/rmmod-spd5118.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now rmmod-spd5118.service
+```
+
+> ⚠️ Chỉ dùng **1 trong 2 cách**. Cách 2 hoạt động nhưng `rmmod` chỉ có hiệu lực tới khi module được nạp lại; blacklist (Cách 1) chặn từ gốc nên bền hơn.
+
+---
+
+### Bước 3 — Cài đặt OpenRGB và Lian Li
+
+```bash
+# OpenRGB (bản git — khớp repo này, 0.9+)
+yay -S openrgb-git            # hoặc: paru -S openrgb-git
+
+# Lian Li RGB (quạt + AIO) — bản Linux thay thế L-Connect 3
+yay -S lianli-linux-git
+```
+
+> 📚 Lian Li Linux: [sgtaziz/lian-li-linux](https://github.com/sgtaziz/lian-li-linux)
+> ⚠️ Sau khi cài, `lianli-daemon` phải có trong `PATH` (`which lianli-daemon`).
+
+---
+
+### Bước 4 — Sao chép file vào đúng vị trí
 
 ```bash
 git clone https://github.com/slimulv1/openrgb-config && cd openrgb-config
@@ -106,7 +175,7 @@ cp lianli/config.json         ~/.config/lianli/config.json
 cp lianli/rgb_presets.json    ~/.config/lianli/rgb_presets.json
 ```
 
-### Bước 3 — Phân quyền
+### Bước 5 — Phân quyền
 
 ```bash
 chmod +x ~/.local/bin/apply-rgb
@@ -120,7 +189,7 @@ chmod +x ~/.local/lib/lianli-wrapper.sh
 > export PATH="$HOME/.local/bin:$PATH"
 > ```
 
-### Bước 4 — Cấp quyền truy cập device
+### Bước 6 — Cấp quyền truy cập device
 
 OpenRGB cần đọc `/dev/i2c-*`; Lian Li cần đọc/ghi `/dev/hidraw*`. Cho user vào nhóm `i2c` (nếu tồn tại):
 
@@ -146,15 +215,15 @@ apply-rgb white       # mặc định
 apply-rgb --list      # liệt kê scheme
 ```
 
-### Bước 5 — Cấu hình Lian Li (device + fan curve)
+### Bước 7 — Cấu hình Lian Li (device + fan curve)
 
-Cấu hình hiện tại (đã copy ở Bước 2 vào `~/.config/lianli/`):
+Cấu hình hiện tại (đã copy ở Bước 4 vào `~/.config/lianli/`):
 - **`config.json`** — fan curve, tốc độ fan, backend `hidraw`, FPS…
 - **`rgb_presets.json`** — các preset màu cho fan hub
 
 > ⚠️ **Machine-specific**: cả 2 file chứa device ID (`hid:...`) và temp source (`acpitz_0`) của máy tham chiếu. **Không copy nguyên từ máy khác** — chỉ dùng làm tham chiếu. Với máy mới, nên để `lianli-daemon` tự sinh config rồi sửa theo phần cứng của bạn.
 
-### Bước 6 — Bật service tự chạy lúc boot
+### Bước 8 — Bật service tự chạy lúc boot
 
 ```bash
 systemctl --user daemon-reload
