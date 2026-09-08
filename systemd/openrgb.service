@@ -7,7 +7,7 @@ StartLimitIntervalSec=60
 [Service]
 Type=simple
 ExecStartPre=udevadm settle
-ExecStart=/home/magnus/.local/lib/openrgb-wrapper.sh
+ExecStart=%h/.local/lib/openrgb-wrapper.sh
 Restart=always
 RestartSec=6
 RemainAfterExit=yes

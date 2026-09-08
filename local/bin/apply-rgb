@@ -18,12 +18,17 @@
 #   # Put GLOBAL keys BEFORE the first [section].
 #   [kingston]                # RAM — dim to 30%
 #   BRIGHTNESS=30
-#   [asus]                    # mainboard
-#   ZONE=0                    # select zone index (device-specific)
+#   [asus|0]                  # zone 0 of ASUS = mainboard onboard
+#   MODE=static
+#   COLORS=FFFFFF
 #   [asus|1]                  # zone 1 of ASUS = ARGB Header 1 (LT720 pump)
 #   SIZE=22                   # resize zone to 22 LEDs before applying
 #   MODE=static
 #   COLORS=FFFFFF
+#
+#   # NOTE: zone selection is via the "[name|zone-index]" section NAME.
+#   #   A bare "[name]" section applies to the WHOLE device (all zones).
+#   #   There is NO "ZONE=" key — it is ignored.
 #
 # Devices (this rig): Kingston Fury DDR5 DRAM | Sapphire RX 7800 XT | ASUS Z690-A
 set -u

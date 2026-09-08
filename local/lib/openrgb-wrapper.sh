@@ -16,7 +16,10 @@ i2c_ready() {
     local d
     for d in /dev/i2c-*; do
         [ -e "$d" ] || continue
-        getfacl -p "$d" 2>/dev/null | grep -qE "^user:${USER}:rw" || return 1
+        # ready if effective read+write works (covers BOTH udev uaccess ACL
+        # "user:USER:rw" AND i2c-group membership from i2c-tools 45-*.rules)
+        if getfacl -p "$d" 2>/dev/null | grep -qE "^user:${USER}:rw"; then continue; fi
+        [ -r "$d" ] && [ -w "$d" ] || return 1
     done
 }
 

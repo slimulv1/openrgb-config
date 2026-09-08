@@ -120,12 +120,12 @@ ExecStart=/sbin/rmmod spd5118
 RemainAfterExit=yes
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 ```
 
 ```bash
 sudo nano /etc/systemd/system/rmmod-spd5118.service   # dán nội dung trên
-sudo chmod 664 /etc/systemd/system/rmmod-spd5118.service
+sudo chmod 644 /etc/systemd/system/rmmod-spd5118.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now rmmod-spd5118.service
 ```
@@ -191,12 +191,24 @@ chmod +x ~/.local/lib/lianli-wrapper.sh
 
 ### Bước 6 — Cấp quyền truy cập device
 
-OpenRGB cần đọc `/dev/i2c-*`; Lian Li cần đọc/ghi `/dev/hidraw*`. Cho user vào nhóm `i2c` (nếu tồn tại):
+OpenRGB cần đọc `/dev/i2c-*`; Lian Li cần đọc/ghi `/dev/hidraw*`.
+
+Tạo nhóm `lianli` (cần cho udev rule của Lian Li gán quyền) rồi cho user vào **cả 2 nhóm** `i2c` và `lianli`:
 
 ```bash
-sudo usermod -aG i2c $USER && sudo udevadm trigger
-# đăng xuất / đăng nhập lại để áp dụng
+# nhóm lianli (chỉ máy mới — lianli-linux-git không tự tạo)
+sudo groupadd -r lianli
+
+# cho user vào cả 2 nhóm
+sudo usermod -aG i2c,lianli $USER
+
+# đăng xuất / đăng nhập lại để áp dụng quyền nhóm mới
 ```
+
+> ℹ️ Có **2 cơ chế** cấp quyền `/dev/i2c-*`:
+> - udev **uaccess** (từ rule của `openrgb-git`) → gán `user:USER:rw` cho user đang đăng nhập — đây là thứ wrapper **kiểm tra** trước
+> - nhóm `i2c` (từ `i2c-tools`) → quyền nhóm dự phòng, hoạt động cả khi không có phiên đăng nhập
+> Wrapper (`openrgb-wrapper.sh`) giờ nhận cả 2: có ACL user **hoặc** quyền đọc/ghi thực tế là OK.
 
 **Kiểm tra OpenRGB nhận thiết bị:**
 
@@ -225,6 +237,12 @@ Cấu hình hiện tại (đã copy ở Bước 4 vào `~/.config/lianli/`):
 
 ### Bước 8 — Bật service tự chạy lúc boot
 
+> 💡 Cho phép user service chạy **dù chưa đăng nhập** (boot sớm):
+> ```bash
+> sudo loginctl enable-linger $USER
+> ```
+> Bỏ qua nếu bạn chỉ muốn RGB bật sau khi đăng nhập.
+
 ```bash
 systemctl --user daemon-reload
 
@@ -242,6 +260,10 @@ systemctl --user status lianli-daemon.service
 journalctl -b | grep openrgb-wrapper
 # kỳ vọng: OK: 3 controllers; applied scheme 'white'
 ```
+
+> ℹ️ Các dòng sau trong log là **bình thường, đừng coi là lỗi**:
+> `Dialog Warning: One or more I2C/SMBus interfaces failed to initialize` (một số bus SMBus không tồn tại) và
+> `NetworkServer recv_select failed ... closing listener` (client ngắt kết nối) — bỏ qua.
 
 ---
 
@@ -306,6 +328,11 @@ Không phải device nào cũng hỗ trợ mọi mode — lý do cần section p
 ---
 
 ## 🔁 Cập nhật file từ repo sau khi sửa
+
+> Clone repo về `~/openrgb-config` (để các lệnh dưới đúng) — nếu clone chỗ khác, thay `~/openrgb-config` bằng đường dẫn của bạn:
+> ```bash
+> git clone https://github.com/slimulv1/openrgb-config ~/openrgb-config
+> ```
 
 Sửa file trên máy → copy đè vào repo → commit + push:
 
