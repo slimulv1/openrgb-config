@@ -1,0 +1,6 @@
+# daquang2 — mint green (default)
+# Mở file này bằng text editor, sửa màu rồi chạy: apply-rgb daquang2
+MODE=static
+COLORS=00FF8C
+BRIGHTNESS=80
+SPEED=25

@@ -1,0 +1,17 @@
+# Breathing — pulse mint green. DRAM "Breath", MB "Breathing", GPU static fallback.
+MODE=breathing
+COLORS=00FF8C
+BRIGHTNESS=80
+SPEED=25
+
+[kingston]
+MODE=breath
+COLORS=00FF8C
+
+[sapphire]
+MODE=static
+COLORS=00FF8C
+
+[asus]
+MODE=breathing
+COLORS=00FF8C

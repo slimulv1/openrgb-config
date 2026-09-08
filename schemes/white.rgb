@@ -1,0 +1,28 @@
+# white — all white. Mainboard + Deepcool LT720 pump full; RAM dim 30%.
+# GPU (RX 7800 XT) chạy rainbow wave tự do.
+# To edit: change COLORS/BRIGHTNESS per section, then run: apply-rgb white
+MODE=static
+COLORS=FFFFFF
+BRIGHTNESS=80
+
+# RAM — 40%
+[kingston]
+BRIGHTNESS=40
+
+# GPU — rainbow wave animation, chạy tự do (không phụ thuộc theme)
+[sapphire]
+MODE=rainbow wave
+BRIGHTNESS=80
+
+# Deepcool LT720 pump on ASUS ARGB Header 1 (zone 1) — resize + white
+[asus|1]
+MODE=static
+COLORS=FFFFFF
+BRIGHTNESS=100
+SIZE=22
+
+# ASUS mainboard onboard lighting (zone 0) — white
+[asus|0]
+MODE=static
+COLORS=FFFFFF
+BRIGHTNESS=100

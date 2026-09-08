@@ -1,0 +1,13 @@
+# Rainbow — all devices. Driver names differ per device.
+MODE=rainbow
+BRIGHTNESS=80
+SPEED=25
+
+[sapphire]
+MODE=rainbow wave
+
+[kingston]
+MODE=rainbow
+
+[asus]
+MODE=rainbow

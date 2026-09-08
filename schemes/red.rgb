@@ -1,0 +1,5 @@
+# Solid red
+MODE=static
+COLORS=FF0000
+BRIGHTNESS=80
+SPEED=25

@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# apply-rgb — apply a color scheme from ~/.config/openrgb/schemes/*.rgb
+#
+# Usage:
+#   apply-rgb            → apply default scheme
+#   apply-rgb <name>     → apply named scheme (white, red, daquang2, ...)
+#   apply-rgb --list     → list available schemes
+#
+# Scheme file format (INI-style, easy to edit by hand):
+#   # comment
+#   MODE=static|breathing|rainbow|spectrum|...
+#   COLORS=FFFFFF,00FF00      (hex, comma-separated)
+#   BRIGHTNESS=80             (0-100)
+#   SPEED=25                  (0-100)
+#
+#   # Optional per-device override sections. Global keys above apply to ALL
+#   # devices; a section overrides for the matching device by name substring.
+#   # Put GLOBAL keys BEFORE the first [section].
+#   [kingston]                # RAM — dim to 30%
+#   BRIGHTNESS=30
+#   [asus]                    # mainboard
+#   ZONE=0                    # select zone index (device-specific)
+#   [asus|1]                  # zone 1 of ASUS = ARGB Header 1 (LT720 pump)
+#   SIZE=22                   # resize zone to 22 LEDs before applying
+#   MODE=static
+#   COLORS=FFFFFF
+#
+# Devices (this rig): Kingston Fury DDR5 DRAM | Sapphire RX 7800 XT | ASUS Z690-A
+set -u
+
+SCHEMES_DIR="${OPENRGB_SCHEMES:-$HOME/.config/openrgb/schemes}"
+DEFAULT_SCHEME="${OPENRGB_DEFAULT_SCHEME:-white}"
+OPENRGB="${OPENRGB_BIN:-openrgb}"
+VERBOSE="${APPLY_RGB_VERBOSE:-0}"
+
+usage() {
+    echo "Usage: apply-rgb [--list | <scheme>]"
+    echo "Schemes:"
+    for f in "$SCHEMES_DIR"/*.rgb; do
+        [ -e "$f" ] || continue
+        name="$(basename "$f" .rgb)"
+        desc="$(grep -m1 '^#' "$f" 2>/dev/null | sed 's/^# *//')"
+        printf "  %-14s %s\n" "$name" "${desc:-}"
+    done
+    exit 0
+}
+
+if [ "${1:-}" = "--list" ] || [ "${1:-}" = "-l" ]; then
+    usage
+fi
+
+SCHEME="${1:-$DEFAULT_SCHEME}"
+FILE="$SCHEMES_DIR/$SCHEME.rgb"
+[ -f "$FILE" ] || { echo "error: scheme '$SCHEME' not found ($FILE)" >&2; usage; }
+
+# --- Parse INI: globals (before any [section]) + per-section overrides ---
+declare -A GLOBAL        # global key -> value
+declare -A KV            # "section|KEY" -> value
+declare -A SECTIONS      # section name set
+
+section=""
+in_global=true
+while IFS= read -r line; do
+    line="${line%%#*}"                     # strip comment
+    line="${line#"${line%%[![:space:]]*}"}"  # strip leading ws
+    line="${line%"${line##*[![:space:]]}"}"  # strip trailing ws
+    [ -z "$line" ] && continue
+    if [[ "$line" == \[*\] ]]; then
+        section="${line#\[}"; section="${section%\]}"
+        section="${section,,}"
+        in_global=false
+        [ -n "$section" ] && SECTIONS["$section"]=1
+        continue
+    fi
+    key="${line%%=*}"; value="${line#*=}"
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"   # strip ws in KEY only
+    value="${value#"${value%%[![:space:]]*}"}"        # strip leading ws in value
+    value="${value%"${value##*[![:space:]]}"}"        # strip trailing ws in value
+    key="${key^^}"
+    [ -z "$key" ] && continue
+    if $in_global; then
+        GLOBAL["$key"]="$value"
+    else
+        KV["$section|$key"]="$value"
+        SECTIONS["$section"]=1
+    fi
+done < "$FILE"
+
+# --- Resolve device list at runtime ---
+mapfile -t DEVICES < <("$OPENRGB" -l 2>/dev/null | grep -E '^[0-9]+:')
+
+# Apply one OpenRGB invocation. args passed positionally:
+#   zone size mode colors b s   (empty = skip that flag)
+invoke() {
+    local z="$1" sz="$2" mode="$3" colors="$4" b="$5" s="$6"
+    local a=("$OPENRGB" -d "$DEVIDX")
+    [ -n "$z" ]       && a+=(-z "$z")
+    [ -n "$sz" ]      && a+=(-sz "$sz")
+    [ -n "$mode" ]    && a+=(-m "$mode")
+    [ -n "$colors" ]  && a+=(-c "$colors")
+    [ -n "$b" ]       && a+=(-b "$b")
+    [ -n "$s" ]       && a+=(-s "$s")
+    ((VERBOSE)) && echo "  [$DEVIDX] $DEVTITLE: zone=${z:-all} size=${sz:-} mode=${mode:-} colors=${colors:-} b=${b:-} s=${s:-}" >&2
+    "${a[@]}" >/dev/null 2>&1 || echo "    ! openrgb failed for [$DEVIDX] zone=${z:-all}" >&2
+}
+
+apply_device() {
+    local idx="$1" name="$2" lname match dsz
+    DEVIDX="$idx"; DEVTITLE="$name"
+    lname="${name,,}"
+
+    # device-level section (name substring, no "|") → global defaults for this device
+    match=""
+    for s in "${!SECTIONS[@]}"; do
+        [[ "$s" == *\|* ]] && continue
+        [[ "$lname" == *"$s"* ]] && { match="$s"; break; }
+    done
+
+    get() {
+        local k="$1"
+        if [ -n "$match" ] && [ -n "${KV["$match|$k"]:-}" ]; then echo "${KV["$match|$k"]}"
+        elif [ -n "${GLOBAL["$k"]:-}" ]; then echo "${GLOBAL["$k"]}"
+        fi
+    }
+
+    local mode colors b sp
+    mode="$(get MODE)"; colors="$(get COLORS)"; b="$(get BRIGHTNESS)"; sp="$(get SPEED)"
+
+    # Device-wide apply (all zones), unless zone sections target specific zones
+    local has_zone_sections=0
+    for s in "${!SECTIONS[@]}"; do
+        [[ "$s" == *\|* ]] || continue
+        local sname="${s%|*}"
+        if [[ "$lname" == *"$sname"* ]]; then has_zone_sections=1; break; fi
+    done
+
+    if (( ! has_zone_sections )); then
+        # no zone override → apply device-wide once
+        invoke "" "" "$mode" "$colors" "$b" "$sp"
+        return
+    fi
+
+    # Device has zone sections: ensure each target zone is applied, and any
+    # untargeted device-level settings still reach the whole device first is
+    # redundant — so here we apply each matching zone section.
+    for s in "${!SECTIONS[@]}"; do
+        [[ "$s" == *\|* ]] || continue
+        local sname="${s%|*}" sidx="${s#*|}"
+        [[ "$lname" == *"$sname"* ]] || continue
+        local zmode="${KV["$s|MODE"]:-$mode}" zcol="${KV["$s|COLORS"]:-$colors}"
+        local zb="${KV["$s|BRIGHTNESS"]:-$b}" zsp="${KV["$s|SPEED"]:-$sp}"
+        local zsz="${KV["$s|SIZE"]:-}"
+        invoke "$sidx" "$zsz" "$zmode" "$zcol" "$zb" "$zsp"
+    done
+}
+
+for dev in "${DEVICES[@]}"; do
+    apply_device "${dev%%:*}" "${dev#*: }"
+done

@@ -1,0 +1,22 @@
+[Unit]
+Description=OpenRGB Hardware Lighting Control
+After=graphical-session.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+ExecStartPre=udevadm settle
+ExecStart=/home/magnus/.local/lib/openrgb-wrapper.sh
+Restart=always
+RestartSec=6
+RemainAfterExit=yes
+
+PrivateTmp=true
+NoNewPrivileges=true
+MemoryMax=100M
+OOMPolicy=kill
+OOMScoreAdjust=100
+
+[Install]
+WantedBy=default.target
