@@ -152,7 +152,7 @@ yay -S lianli-linux-git
 ### Bước 4 — Sao chép file vào đúng vị trí
 
 ```bash
-git clone https://github.com/slimulv1/openrgb-config && cd openrgb-config
+git clone https://github.com/slimulv1/rgb-config && cd rgb-config
 
 # tạo thư mục đích
 mkdir -p ~/.config/systemd/user/lianli-daemon.service.d \
@@ -329,28 +329,28 @@ Không phải device nào cũng hỗ trợ mọi mode — lý do cần section p
 
 ## 🔁 Cập nhật file từ repo sau khi sửa
 
-> Clone repo về `~/openrgb-config` (để các lệnh dưới đúng) — nếu clone chỗ khác, thay `~/openrgb-config` bằng đường dẫn của bạn:
+> Clone repo về `~/rgb-config` (để các lệnh dưới đúng) — nếu clone chỗ khác, thay `~/rgb-config` bằng đường dẫn của bạn:
 > ```bash
-> git clone https://github.com/slimulv1/openrgb-config ~/openrgb-config
+> git clone https://github.com/slimulv1/rgb-config ~/rgb-config
 > ```
 
 Sửa file trên máy → copy đè vào repo → commit + push:
 
 ```bash
 # OpenRGB
-cp ~/.local/lib/openrgb-wrapper.sh ~/openrgb-config/local/lib/
-cp ~/.local/lib/lianli-wrapper.sh  ~/openrgb-config/local/lib/
-cp ~/.local/bin/apply-rgb          ~/openrgb-config/local/bin/
-cp ~/.config/openrgb/schemes/*.rgb ~/openrgb-config/schemes/
-cp ~/.config/systemd/user/openrgb.service        ~/openrgb-config/systemd/
+cp ~/.local/lib/openrgb-wrapper.sh ~/rgb-config/local/lib/
+cp ~/.local/lib/lianli-wrapper.sh  ~/rgb-config/local/lib/
+cp ~/.local/bin/apply-rgb          ~/rgb-config/local/bin/
+cp ~/.config/openrgb/schemes/*.rgb ~/rgb-config/schemes/
+cp ~/.config/systemd/user/openrgb.service        ~/rgb-config/systemd/
 cp ~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf \
-   ~/openrgb-config/systemd/lianli-daemon.service.d/retry-open-acl.conf
+   ~/rgb-config/systemd/lianli-daemon.service.d/retry-open-acl.conf
 
 # Lian Li config
-cp ~/.config/lianli/config.json       ~/openrgb-config/lianli/
-cp ~/.config/lianli/rgb_presets.json  ~/openrgb-config/lianli/
+cp ~/.config/lianli/config.json       ~/rgb-config/lianli/
+cp ~/.config/lianli/rgb_presets.json  ~/rgb-config/lianli/
 
-cd ~/openrgb-config
+cd ~/rgb-config
 git commit -am "update: ..."
 git push
 ```
