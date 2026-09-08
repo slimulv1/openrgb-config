@@ -1,0 +1,191 @@
+[
+  {
+    "name": "greem lime",
+    "device_id": "hid:6243168001:group1",
+    "zones": [
+      {
+        "zone": 0,
+        "colors": [],
+        "effect": {
+          "mode": "Staggered",
+          "colors": [
+            [
+              68,
+              254,
+              14
+            ]
+          ],
+          "speed": 0,
+          "brightness": 4,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      },
+      {
+        "zone": 1,
+        "colors": [],
+        "effect": {
+          "mode": "Staggered",
+          "colors": [
+            [
+              68,
+              254,
+              14
+            ]
+          ],
+          "speed": 0,
+          "brightness": 4,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      },
+      {
+        "zone": 2,
+        "colors": [],
+        "effect": {
+          "mode": "Staggered",
+          "colors": [
+            [
+              68,
+              254,
+              14
+            ]
+          ],
+          "speed": 0,
+          "brightness": 4,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      }
+    ]
+  },
+  {
+    "name": "Green Lime",
+    "device_id": "hid:6243168001:group0",
+    "zones": [
+      {
+        "zone": 0,
+        "colors": [],
+        "effect": {
+          "mode": "Runway",
+          "colors": [
+            [
+              68,
+              254,
+              14
+            ]
+          ],
+          "speed": 0,
+          "brightness": 3,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      },
+      {
+        "zone": 1,
+        "colors": [],
+        "effect": {
+          "mode": "Runway",
+          "colors": [
+            [
+              68,
+              254,
+              14
+            ]
+          ],
+          "speed": 0,
+          "brightness": 3,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      },
+      {
+        "zone": 2,
+        "colors": [],
+        "effect": {
+          "mode": "Runway",
+          "colors": [
+            [
+              68,
+              254,
+              14
+            ]
+          ],
+          "speed": 0,
+          "brightness": 3,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      }
+    ]
+  },
+  {
+    "name": "White",
+    "device_id": "hid:6243168001:group1",
+    "zones": [
+      {
+        "zone": 0,
+        "colors": [],
+        "effect": {
+          "mode": "Staggered",
+          "colors": [
+            [
+              255,
+              221,
+              221
+            ]
+          ],
+          "speed": 0,
+          "brightness": 4,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      },
+      {
+        "zone": 1,
+        "colors": [],
+        "effect": {
+          "mode": "Tide",
+          "colors": [
+            [
+              73,
+              109,
+              255
+            ]
+          ],
+          "speed": 0,
+          "brightness": 4,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      },
+      {
+        "zone": 2,
+        "colors": [],
+        "effect": {
+          "mode": "Tide",
+          "colors": [
+            [
+              73,
+              109,
+              255
+            ]
+          ],
+          "speed": 0,
+          "brightness": 4,
+          "direction": "Clockwise",
+          "scope": "All",
+          "disabled": false
+        }
+      }
+    ]
+  }
+]

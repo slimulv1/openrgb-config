@@ -38,6 +38,9 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 │   └── lib/
 │       ├── openrgb-wrapper.sh                   # đợi ACL i2c → launch server → apply
 │       └── lianli-wrapper.sh                    # đợi ACL hidraw → launch daemon
+├── lianli/
+│   ├── config.json                              # config Lian Li (machine-specific)
+│   └── rgb_presets.json                         # preset màu Lian Li
 └── schemes/
     ├── white.rgb (default)   ├── rainbow.rgb
     ├── breath.rgb            ├── red.rgb
@@ -54,6 +57,8 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 | `local/lib/openrgb-wrapper.sh` | `~/.local/lib/openrgb-wrapper.sh` |
 | `local/lib/lianli-wrapper.sh` | `~/.local/lib/lianli-wrapper.sh` |
 | `local/bin/apply-rgb` | `~/.local/bin/apply-rgb` |
+| `lianli/config.json` | `~/.config/lianli/config.json` |
+| `lianli/rgb_presets.json` | `~/.config/lianli/rgb_presets.json` |
 | `schemes/*.rgb` | `~/.config/openrgb/schemes/` |
 
 ---
@@ -90,10 +95,15 @@ cp local/lib/openrgb-wrapper.sh   ~/.local/lib/openrgb-wrapper.sh
 cp local/bin/apply-rgb            ~/.local/bin/apply-rgb
 cp schemes/*.rgb                  ~/.config/openrgb/schemes/
 
-# Lian Li
+# Lian Li — script + drop-in
 cp local/lib/lianli-wrapper.sh                     ~/.local/lib/lianli-wrapper.sh
 cp systemd/lianli-daemon.service.d/retry-open-acl.conf \
    ~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf
+
+# Lian Li — config + presets (máy tham chiếu)
+mkdir -p ~/.config/lianli
+cp lianli/config.json         ~/.config/lianli/config.json
+cp lianli/rgb_presets.json    ~/.config/lianli/rgb_presets.json
 ```
 
 ### Bước 3 — Phân quyền
@@ -138,7 +148,11 @@ apply-rgb --list      # liệt kê scheme
 
 ### Bước 5 — Cấu hình Lian Li (device + fan curve)
 
-`lianli-daemon` đọc config tại `~/.config/lianli/config.json` (fan curve, tốc độ fan, backend hidraw…). Máy này đã có sẵn; cấu hình là **machine-specific** (device ID `hid:...`, temp source `acpitz_0`) — **không copy nguyên từ máy khác**, mỗi máy nên để daemon tự sinh/sửa riêng.
+Cấu hình hiện tại (đã copy ở Bước 2 vào `~/.config/lianli/`):
+- **`config.json`** — fan curve, tốc độ fan, backend `hidraw`, FPS…
+- **`rgb_presets.json`** — các preset màu cho fan hub
+
+> ⚠️ **Machine-specific**: cả 2 file chứa device ID (`hid:...`) và temp source (`acpitz_0`) của máy tham chiếu. **Không copy nguyên từ máy khác** — chỉ dùng làm tham chiếu. Với máy mới, nên để `lianli-daemon` tự sinh config rồi sửa theo phần cứng của bạn.
 
 ### Bước 6 — Bật service tự chạy lúc boot
 
@@ -227,10 +241,18 @@ Không phải device nào cũng hỗ trợ mọi mode — lý do cần section p
 Sửa file trên máy → copy đè vào repo → commit + push:
 
 ```bash
+# OpenRGB
 cp ~/.local/lib/openrgb-wrapper.sh ~/openrgb-config/local/lib/
-cp ~/.local/bin/apply-rgb           ~/openrgb-config/local/bin/
-cp ~/.config/openrgb/schemes/*.rgb  ~/openrgb-config/schemes/
-cp ~/.config/systemd/user/openrgb.service ~/openrgb-config/systemd/
+cp ~/.local/lib/lianli-wrapper.sh  ~/openrgb-config/local/lib/
+cp ~/.local/bin/apply-rgb          ~/openrgb-config/local/bin/
+cp ~/.config/openrgb/schemes/*.rgb ~/openrgb-config/schemes/
+cp ~/.config/systemd/user/openrgb.service        ~/openrgb-config/systemd/
+cp ~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf \
+   ~/openrgb-config/systemd/lianli-daemon.service.d/retry-open-acl.conf
+
+# Lian Li config
+cp ~/.config/lianli/config.json       ~/openrgb-config/lianli/
+cp ~/.config/lianli/rgb_presets.json  ~/openrgb-config/lianli/
 
 cd ~/openrgb-config
 git commit -am "update: ..."
