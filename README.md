@@ -1,23 +1,25 @@
 # OpenRGB — RGB Lighting Config (Core64)
 
-Cấu hình RGB lighting cho máy Core64, sử dụng [OpenRGB](https://openrgb.org/) (version **0.9+**, git2453). Hệ thống này thay thế hoàn toàn việc phải mở OpenRGB UI và load profile `.orp` — giờ đổi màu chỉ bằng cách sửa file text `.rgb` rồi chạy một lệnh.
+Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (điều khiển RAM / GPU / mainboard / AIO pump) và **Lian Li daemon** (fan hub). Hệ thống này thay thế việc phải mở OpenRGB GUI và load profile `.orp` — đổi màu chỉ bằng cách sửa file text `.rgb` rồi chạy một lệnh.
 
 ---
 
 ## 🖥️ Các thiết bị RGB đang dùng
 
-| # | Device | Loại | OpenRGB tên hiển thị |
-|---|--------|------|----------------------|
-| 0 | **Kingston Fury DDR5 DRAM** | RAM | `Kingston Fury DDR5 DRAM` |
+### Qua OpenRGB
+
+| # | Thiết bị | Loại | Tên OpenRGB |
+|---|----------|------|-------------|
+| 0 | **Kingston Fury DDR5** | RAM | `Kingston Fury DDR5 DRAM` |
 | 1 | **Sapphire RX 7800 XT Nitro+** | GPU | `Sapphire Radeon RX 7800 XT Nitro+` |
 | 2 | **ASUS ROG STRIX Z690-A** | Mainboard | `ASUS ROG STRIX Z690-A GAMING WIFI` |
 
-### Thiết bị RGB khác (không qua OpenRGB)
+### Thiết bị khác
 
-| Device | Cách điều khiển | Ghi chú |
-|--------|-----------------|---------|
-| **Deepcool LT720 AIO** (pump block) | Nối vào **ARGB Header 1** của mainboard → điều khiển qua zone ASUS (zone 1, cần resize `SIZE=22`) | Pump chỉ có RGB; **fan FK120 KHÔNG có RGB** |
-| **Lian Li Uni Hub SL** (fan hub) | `lianli-daemon` riêng (USB `0cf2:a100`), **KHÔNG qua OpenRGB** | Hub cho fans |
+| Thiết bị | Điều khiển | Ghi chú |
+|----------|------------|---------|
+| **Deepcool LT720 AIO** (pump) | Nối **ARGB Header 1** mainboard → qua zone ASUS (zone 1, cần resize `SIZE=22`) | Pump có RGB; **fan FK120 KHÔNG có RGB** |
+| **Lian Li Uni Hub SL** | `lianli-daemon` (USB `0cf2:a100`, hidraw) | Điều khiển fan hub, KHÔNG qua OpenRGB |
 
 ---
 
@@ -25,73 +27,101 @@ Cấu hình RGB lighting cho máy Core64, sử dụng [OpenRGB](https://openrgb.
 
 ```
 .
-├── systemd/openrgb.service      # systemd user service → chạy wrapper lúc boot
-├── local/lib/openrgb-wrapper.sh # wrapper: đợi ACL i2c → launch server → apply scheme
-├── local/bin/apply-rgb          # script đổi màu (đọc file .rgb)
-└── schemes/*.rgb                # các color scheme (dễ chỉnh bằng text editor)
+├── README.md
+├── systemd/
+│   ├── openrgb.service                          # OpenRGB boot service
+│   └── lianli-daemon.service.d/
+│       └── retry-open-acl.conf                  # Lian Li drop-in → wrapper
+├── local/
+│   ├── bin/
+│   │   └── apply-rgb                            # script đổi màu
+│   └── lib/
+│       ├── openrgb-wrapper.sh                   # đợi ACL i2c → launch server → apply
+│       └── lianli-wrapper.sh                    # đợi ACL hidraw → launch daemon
+└── schemes/
+    ├── white.rgb (default)   ├── rainbow.rgb
+    ├── breath.rgb            ├── red.rgb
+    ├── daquang2.rgb          ├── xanhtim.rgb
+    └── vangxanh.rgb
 ```
 
-### Vị trí cài đặt trên máy (mirror của repo)
+### Ánh xạ file → vị trí hệ thống
 
-| Repo path | Hệ thống |
-|-----------|----------|
-| `systemd/openrgb.service` | `~/.config/systemd/user/` |
-| `local/lib/openrgb-wrapper.sh` | `~/.local/lib/` |
-| `local/bin/apply-rgb` | `~/.local/bin/` |
+| Repo path | Vị trí cài đặt |
+|-----------|----------------|
+| `systemd/openrgb.service` | `~/.config/systemd/user/openrgb.service` |
+| `systemd/lianli-daemon.service.d/retry-open-acl.conf` | `~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf` |
+| `local/lib/openrgb-wrapper.sh` | `~/.local/lib/openrgb-wrapper.sh` |
+| `local/lib/lianli-wrapper.sh` | `~/.local/lib/lianli-wrapper.sh` |
+| `local/bin/apply-rgb` | `~/.local/bin/apply-rgb` |
 | `schemes/*.rgb` | `~/.config/openrgb/schemes/` |
 
 ---
 
 ## 🛠️ Cài đặt
 
-### Bước 1: Cài OpenRGB
+> ✅ **Đã sẵn sàng** trên Core64 (máy tham chiếu). Các bước dưới đây dành cho máy mới / cài lại.
+
+### Bước 1 — Cài đặt phần mềm
 
 ```bash
-# Arch / CachyOS (AUR)
-yay -S openrgb            # hoặc: paru -S openrgb
+# OpenRGB
+yay -S openrgb                # hoặc: paru -S openrgb
 
-openrgb --version         # kiểm tra (repo này dùng 0.9+, cần ≥0.7)
+# Lian Li daemon (bản Linux thay thế L-Connect 3)
+git clone https://github.com/slimulv1/lian-li-linux
+cd lian-li-linux && make      # build → cài binary lianli-daemon vào /usr/bin/
 ```
 
-### Bước 2: Sao chép file vào đúng vị trí
+> ⚠️ `lianli-daemon` phải có trong `PATH` (`which lianli-daemon`). Repo này là fork của `lian-li-linux`.
+
+### Bước 2 — Sao chép file vào đúng vị trí
 
 ```bash
-# clone repo
 git clone https://github.com/slimulv1/openrgb-config && cd openrgb-config
 
 # tạo thư mục đích
-mkdir -p ~/.config/systemd/user   ~/.local/lib  ~/.local/bin  ~/.config/openrgb/schemes
+mkdir -p ~/.config/systemd/user/lianli-daemon.service.d \
+         ~/.local/lib ~/.local/bin ~/.config/openrgb/schemes
 
-# copy file
-cp systemd/openrgb.service            ~/.config/systemd/user/openrgb.service
-cp local/lib/openrgb-wrapper.sh       ~/.local/lib/openrgb-wrapper.sh
-cp local/bin/apply-rgb                ~/.local/bin/apply-rgb
-cp schemes/*.rgb                      ~/.config/openrgb/schemes/
+# OpenRGB
+cp systemd/openrgb.service        ~/.config/systemd/user/openrgb.service
+cp local/lib/openrgb-wrapper.sh   ~/.local/lib/openrgb-wrapper.sh
+cp local/bin/apply-rgb            ~/.local/bin/apply-rgb
+cp schemes/*.rgb                  ~/.config/openrgb/schemes/
+
+# Lian Li
+cp local/lib/lianli-wrapper.sh                     ~/.local/lib/lianli-wrapper.sh
+cp systemd/lianli-daemon.service.d/retry-open-acl.conf \
+   ~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf
 ```
 
-### Bước 3: Phân quyền
+### Bước 3 — Phân quyền
 
 ```bash
 chmod +x ~/.local/bin/apply-rgb
 chmod +x ~/.local/lib/openrgb-wrapper.sh
+chmod +x ~/.local/lib/lianli-wrapper.sh
 ```
 
-> `~/.local/bin` cần nằm trong `PATH` để gõ `apply-rgb` trực tiếp.
-> Kiểm tra: `echo $PATH | grep .local/bin` — nếu chưa có, thêm vào `~/.bashrc` / `~/.zshrc`:
+> `~/.local/bin` cần nằm trong `PATH`: `echo $PATH | grep .local/bin`.
+> Nếu chưa có, thêm vào `~/.bashrc` / `~/.zshrc`:
 > ```bash
 > export PATH="$HOME/.local/bin:$PATH"
 > ```
 
-### Bước 4: Cấp quyền truy cập device (i2c/hidraw)
+### Bước 4 — Cấp quyền truy cập device
 
-OpenRGB cần đọc `/dev/i2c-*` và `/dev/hidraw*`. Cách nhanh nhất là cho user vào nhóm `i2c` (hoặc hop dùng ACL):
+OpenRGB cần đọc `/dev/i2c-*`; Lian Li cần đọc/ghi `/dev/hidraw*`. Cho user vào nhóm `i2c` (nếu tồn tại):
 
 ```bash
-# Nếu nhóm i2c tồn tại
 sudo usermod -aG i2c $USER && sudo udevadm trigger
-# đăng xuất / đăng nhập lại (hoặc khởi động lại) để áp dụng
+# đăng xuất / đăng nhập lại để áp dụng
+```
 
-# Kiểm tra quyền đã đọc được thiết bị chưa
+**Kiểm tra OpenRGB nhận thiết bị:**
+
+```bash
 openrgb -l
 # kỳ vọng:
 #   0: Kingston Fury DDR5 DRAM
@@ -99,21 +129,36 @@ openrgb -l
 #   2: ASUS ROG STRIX Z690-A GAMING WIFI
 ```
 
-> 💡 Nếu chỉ cần đổi màu thủ công (không cần boot tự động), chạy thẳng `apply-rgb white` — không cần bước 5.
+**Đổi màu nhanh (không cần boot service):**
 
-### Bước 5: Bật service tự chạy lúc boot (tùy chọn)
+```bash
+apply-rgb white       # mặc định
+apply-rgb --list      # liệt kê scheme
+```
+
+### Bước 5 — Cấu hình Lian Li (device + fan curve)
+
+`lianli-daemon` đọc config tại `~/.config/lianli/config.json` (fan curve, tốc độ fan, backend hidraw…). Máy này đã có sẵn; cấu hình là **machine-specific** (device ID `hid:...`, temp source `acpitz_0`) — **không copy nguyên từ máy khác**, mỗi máy nên để daemon tự sinh/sửa riêng.
+
+### Bước 6 — Bật service tự chạy lúc boot
 
 ```bash
 systemctl --user daemon-reload
+
+# OpenRGB
 systemctl --user enable --now openrgb.service
+
+# Lian Li
+systemctl --user enable --now lianli-daemon.service
 
 # kiểm tra
 systemctl --user status openrgb.service
+systemctl --user status lianli-daemon.service
+
+# log xác nhận OpenRGB đã apply scheme
 journalctl -b | grep openrgb-wrapper
 # kỳ vọng: OK: 3 controllers; applied scheme 'white'
 ```
-
-> ⚠️ Script `openrgb-wrapper.sh` có logic chờ ACL race lúc boot (tham số `I2C_WAIT_S`, `DETECT_WAIT_S`, `MIN_CONTROLLERS`). Nếu thiết bị của bạn khác máy Core64, xem lại biến `BIN`/`LOGDIR` và đường dẫn OpenRGB log (`~/.config/OpenRGB/logs/OpenRGB_*.log`).
 
 ---
 
@@ -122,19 +167,19 @@ journalctl -b | grep openrgb-wrapper
 ### Đổi màu ngay
 
 ```bash
-apply-rgb              # áp dụng scheme mặc định (white)
+apply-rgb              # scheme mặc định (white)
 apply-rgb white        # toàn trắng: RAM 40%, GPU rainbow, pump/mainboard full
-apply-rgb rainbow      # rainbow tất cả (GPU dùng "rainbow wave")
+apply-rgb rainbow      # rainbow tất cả (GPU "rainbow wave")
 apply-rgb breath       # breathing xanh mint
 apply-rgb red          # đỏ
 apply-rgb xanhtim      # xanh dương
 apply-rgb vangxanh     # cam
-apply-rgb --list       # liệt kê các scheme
+apply-rgb --list       # liệt kê scheme
 ```
 
 ### Tạo/đổi scheme mới
 
-Sửa file `.rgb` trong `schemes/` — format INI đơn giản:
+Sửa file `.rgb` trong `schemes/` — format INI:
 
 ```ini
 # header: global (áp dụng mọi thiết bị)
@@ -142,42 +187,31 @@ MODE=static
 COLORS=FFFFFF
 BRIGHTNESS=80
 
-# override per-device (tên section = substring của tên thiết bị)
-[kingston]
-BRIGHTNESS=40              # RAM chỉ 40%
+[kingston]              # RAM
+BRIGHTNESS=40
 
-[sapphire]
-MODE=rainbow wave          # GPU chạy rainbow tự do
+[sapphire]              # GPU — rainbow tự do
+MODE=rainbow wave
 
-# per-zone trên cùng device (mainboard): [tên|zone-index]
-[asus|0]                    # mainboard onboard
+[asus|0]                # mainboard onboard (zone 0)
 MODE=static
 COLORS=FFFFFF
 BRIGHTNESS=100
 
-[asus|1]                    # ARGB Header 1 = Deepcool LT720 pump
-SIZE=22                     # resize zone về 22 LED trước khi set
+[asus|1]                # ARGB Header 1 = Deepcool LT720 pump (zone 1)
+SIZE=22                 # resize zone về 22 LED trước khi set
 MODE=static
 COLORS=FFFFFF
 BRIGHTNESS=100
 ```
 
-> ⚠️ **Lưu ý:** các key **global phải đặt TRƯỚC** section đầu tiên. Đổi màu trong section chỉ ảnh hưởng thiết bị/zone đó.
-
-### Boot tự động
-
-`openrgb.service` (user) chạy lúc log in:
-1. `udevadm settle` — chờ udev
-2. `openrgb-wrapper.sh` — đợi ACL i2c (race boot), launch `openrgb --server --noautoconnect`, chờ detect controller
-3. Detect ≥1 controller → `apply-rgb white` → LED sáng theo scheme
-
-Log xác nhận: `journalctl -b | grep openrgb-wrapper` → `OK: 3 controllers; applied scheme 'white'`
+> ⚠️ **Key global phải đặt TRƯỚC** section đầu tiên. Tên section = substring của tên thiết bị (`[kingston]`, `[sapphire]`, `[asus]`); `[tên|zone-index]` để chỉ zone cụ thể.
 
 ---
 
 ## 🔧 Các mode hoạt động trên từng thiết bị
 
-Không phải device nào cũng hỗ trợ mọi mode — đây là lý do cần section per-device:
+Không phải device nào cũng hỗ trợ mọi mode — lý do cần section per-device:
 
 | Mode | DRAM | GPU | Mainboard |
 |------|:----:|:---:|:---------:|
@@ -185,3 +219,20 @@ Không phải device nào cũng hỗ trợ mọi mode — đây là lý do cần
 | `Rainbow` | ✅ | ❌ (dùng `rainbow wave`) | ✅ |
 | `breath`/`breathing` | `breath` | ❌ (fallback `static`) | `breathing` |
 | `Spectrum` | ✅ | `spectrum cycle` | `spectrum cycle` |
+
+---
+
+## 🔁 Cập nhật file từ repo sau khi sửa
+
+Sửa file trên máy → copy đè vào repo → commit + push:
+
+```bash
+cp ~/.local/lib/openrgb-wrapper.sh ~/openrgb-config/local/lib/
+cp ~/.local/bin/apply-rgb           ~/openrgb-config/local/bin/
+cp ~/.config/openrgb/schemes/*.rgb  ~/openrgb-config/schemes/
+cp ~/.config/systemd/user/openrgb.service ~/openrgb-config/systemd/
+
+cd ~/openrgb-config
+git commit -am "update: ..."
+git push
+```
