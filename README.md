@@ -42,6 +42,81 @@ Cấu hình RGB lighting cho máy Core64, sử dụng [OpenRGB](https://openrgb.
 
 ---
 
+## 🛠️ Cài đặt
+
+### Bước 1: Cài OpenRGB
+
+```bash
+# Arch / CachyOS (AUR)
+yay -S openrgb            # hoặc: paru -S openrgb
+
+openrgb --version         # kiểm tra (repo này dùng 0.9+, cần ≥0.7)
+```
+
+### Bước 2: Sao chép file vào đúng vị trí
+
+```bash
+# clone repo
+git clone https://github.com/slimulv1/openrgb-config && cd openrgb-config
+
+# tạo thư mục đích
+mkdir -p ~/.config/systemd/user   ~/.local/lib  ~/.local/bin  ~/.config/openrgb/schemes
+
+# copy file
+cp systemd/openrgb.service            ~/.config/systemd/user/openrgb.service
+cp local/lib/openrgb-wrapper.sh       ~/.local/lib/openrgb-wrapper.sh
+cp local/bin/apply-rgb                ~/.local/bin/apply-rgb
+cp schemes/*.rgb                      ~/.config/openrgb/schemes/
+```
+
+### Bước 3: Phân quyền
+
+```bash
+chmod +x ~/.local/bin/apply-rgb
+chmod +x ~/.local/lib/openrgb-wrapper.sh
+```
+
+> `~/.local/bin` cần nằm trong `PATH` để gõ `apply-rgb` trực tiếp.
+> Kiểm tra: `echo $PATH | grep .local/bin` — nếu chưa có, thêm vào `~/.bashrc` / `~/.zshrc`:
+> ```bash
+> export PATH="$HOME/.local/bin:$PATH"
+> ```
+
+### Bước 4: Cấp quyền truy cập device (i2c/hidraw)
+
+OpenRGB cần đọc `/dev/i2c-*` và `/dev/hidraw*`. Cách nhanh nhất là cho user vào nhóm `i2c` (hoặc hop dùng ACL):
+
+```bash
+# Nếu nhóm i2c tồn tại
+sudo usermod -aG i2c $USER && sudo udevadm trigger
+# đăng xuất / đăng nhập lại (hoặc khởi động lại) để áp dụng
+
+# Kiểm tra quyền đã đọc được thiết bị chưa
+openrgb -l
+# kỳ vọng:
+#   0: Kingston Fury DDR5 DRAM
+#   1: Sapphire Radeon RX 7800 XT Nitro+
+#   2: ASUS ROG STRIX Z690-A GAMING WIFI
+```
+
+> 💡 Nếu chỉ cần đổi màu thủ công (không cần boot tự động), chạy thẳng `apply-rgb white` — không cần bước 5.
+
+### Bước 5: Bật service tự chạy lúc boot (tùy chọn)
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now openrgb.service
+
+# kiểm tra
+systemctl --user status openrgb.service
+journalctl -b | grep openrgb-wrapper
+# kỳ vọng: OK: 3 controllers; applied scheme 'white'
+```
+
+> ⚠️ Script `openrgb-wrapper.sh` có logic chờ ACL race lúc boot (tham số `I2C_WAIT_S`, `DETECT_WAIT_S`, `MIN_CONTROLLERS`). Nếu thiết bị của bạn khác máy Core64, xem lại biến `BIN`/`LOGDIR` và đường dẫn OpenRGB log (`~/.config/OpenRGB/logs/OpenRGB_*.log`).
+
+---
+
 ## 🎨 Cách dùng
 
 ### Đổi màu ngay
