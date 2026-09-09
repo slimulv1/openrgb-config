@@ -1,0 +1,19 @@
+# Full override of lianli-daemon.service (user level, replaces the package
+# unit at /usr/lib/systemd/user/lianli-daemon.service).
+# Package unit had After=+PartOf=graphical-session.target, which:
+#   - stops the daemon on logout (LEDs lose control until next login)
+#   - couples startup to the session lifecycle
+# We want the daemon to run and keep controlling LEDs independent of the
+# GUI session (bus access is granted by udev GROUP=lianli at node creation,
+# no login required).
+[Unit]
+Description=Lian Li Device Daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/lianli-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

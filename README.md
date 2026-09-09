@@ -30,6 +30,7 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 ├── README.md
 ├── systemd/
 │   ├── openrgb.service                          # OpenRGB boot service
+│   ├── lianli-daemon.service                    # override unit: độc lập session (bỏ graphical-session.target)
 │   └── lianli-daemon.service.d/
 │       └── retry-open-acl.conf                  # Lian Li drop-in → wrapper
 ├── udev/
@@ -39,7 +40,7 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 │   │   └── apply-rgb                            # script đổi màu
 │   └── lib/
 │       ├── openrgb-wrapper.sh                   # đợi I801+hidraw Aura → launch server → apply
-│       └── lianli-wrapper.sh                    # đợi ACL hidraw → launch daemon
+│       └── lianli-wrapper.sh                    # đợi hidraw (GROUP=lianli, ~1s) → launch daemon
 ├── lianli/
 │   ├── config.json                              # config Lian Li (machine-specific)
 │   └── rgb_presets.json                         # preset màu Lian Li
@@ -55,6 +56,7 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 | Repo path | Vị trí cài đặt |
 |-----------|----------------|
 | `systemd/openrgb.service` | `~/.config/systemd/user/openrgb.service` |
+| `systemd/lianli-daemon.service` | `~/.config/systemd/user/lianli-daemon.service` |
 | `systemd/lianli-daemon.service.d/retry-open-acl.conf` | `~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf` |
 | `local/lib/openrgb-wrapper.sh` | `~/.local/lib/openrgb-wrapper.sh` |
 | `udev/60-aura-led.rules` | `/etc/udev/rules.d/60-aura-led.rules` (cần root) |
@@ -167,8 +169,9 @@ cp local/lib/openrgb-wrapper.sh   ~/.local/lib/openrgb-wrapper.sh
 cp local/bin/apply-rgb            ~/.local/bin/apply-rgb
 cp schemes/*.rgb                  ~/.config/openrgb/schemes/
 
-# Lian Li — script + drop-in
-cp local/lib/lianli-wrapper.sh                     ~/.local/lib/lianli-wrapper.sh
+# Lian Li — override unit + script + drop-in
+cp systemd/lianli-daemon.service                    ~/.config/systemd/user/lianli-daemon.service
+cp local/lib/lianli-wrapper.sh                       ~/.local/lib/lianli-wrapper.sh
 cp systemd/lianli-daemon.service.d/retry-open-acl.conf \
    ~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf
 
@@ -277,7 +280,13 @@ systemctl --user status lianli-daemon.service
 # log xác nhận OpenRGB đã apply scheme
 journalctl -b | grep openrgb-wrapper
 # kỳ vọng: OK: 3 controllers; applied scheme 'white'
+
+# log xác nhận Lian Li ready (không cần đợi login)
+journalctl -b | grep lianli-wrapper
+# kỳ vọng: /dev/hidraw10 ready (after Ns)  — N bé (0–5s)
 ```
+
+> ℹ️ `systemd/lianli-daemon.service` trong repo là **full override unit** (sao chép nguyên file vào `~/.config/systemd/user/`). Nó bỏ `After=`/`PartOf=graphical-session.target` của package unit — drop-in KHÔNG xóa được các dependency này (systemd merge semantics), nên cần override unit. Lợi ích: daemon **không bị stop khi logout** và không phụ thuộc vào việc session đã mở chưa. Khi nâng cấp package `lianli-linux-git`, override unit vẫn win (user unit ưu tiên hơn package unit).
 
 > ℹ️ Các dòng sau trong log là **bình thường, đừng coi là lỗi**:
 > `Dialog Warning: One or more I2C/SMBus interfaces failed to initialize` (một số bus SMBus không tồn tại) và

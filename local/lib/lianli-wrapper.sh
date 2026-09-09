@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Wait for Lian Li hub (0cf2:a100) hidraw ACL before launching daemon.
-# Fixes race: session restart → udev uaccess not yet granted → "Permission denied".
+# Wait for Lian Li hub (0cf2:a100) hidraw node to be accessible.
+# Access is granted via EITHER path:
+#   - udev rule GROUP=lianli   (immediate at node creation, no login needed)
+#   - uaccess ACL user:USER:rw (granted at GUI login)
+# Fixes race: wrapper used to wait only for the uaccess ACL, wasting 40s.
 set -e
 
-MAX_WAIT="${LIANLI_WAIT_S:-40}"
+MAX_WAIT="${LIANLI_WAIT_S:-20}"
 VENDOR="0cf2"
 MODEL="a100"
 
@@ -19,13 +22,16 @@ find_node() {
     return 1
 }
 
-# Wait for device + ACL
+# Wait for device + access (uaccess ACL OR group-based rw)
 NODE=""
 for ((i = 1; i <= MAX_WAIT; i++)); do
     NODE="$(find_node || true)"
-    if [ -n "$NODE" ] && getfacl -cp "$NODE" 2>/dev/null | grep -q "^user:$(id -un):rw" 2>/dev/null; then
-        echo "lianli wrapper: $NODE ready (after ${i}s)" >&2
-        break
+    if [ -n "$NODE" ]; then
+        if getfacl -cp "$NODE" 2>/dev/null | grep -q "^user:$(id -un):rw" 2>/dev/null \
+           || { [ -r "$NODE" ] && [ -w "$NODE" ]; }; then
+            echo "lianli wrapper: $NODE ready (after ${i}s)" >&2
+            break
+        fi
     fi
     NODE=""
     sleep 1
