@@ -32,11 +32,13 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 │   ├── openrgb.service                          # OpenRGB boot service
 │   └── lianli-daemon.service.d/
 │       └── retry-open-acl.conf                  # Lian Li drop-in → wrapper
+├── udev/
+│   └── 60-aura-led.rules                        # AURA (0b05:19af) → GROUP=i2c sớm
 ├── local/
 │   ├── bin/
 │   │   └── apply-rgb                            # script đổi màu
 │   └── lib/
-│       ├── openrgb-wrapper.sh                   # đợi ACL i2c → launch server → apply
+│       ├── openrgb-wrapper.sh                   # đợi I801+hidraw Aura → launch server → apply
 │       └── lianli-wrapper.sh                    # đợi ACL hidraw → launch daemon
 ├── lianli/
 │   ├── config.json                              # config Lian Li (machine-specific)
@@ -55,6 +57,7 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 | `systemd/openrgb.service` | `~/.config/systemd/user/openrgb.service` |
 | `systemd/lianli-daemon.service.d/retry-open-acl.conf` | `~/.config/systemd/user/lianli-daemon.service.d/retry-open-acl.conf` |
 | `local/lib/openrgb-wrapper.sh` | `~/.local/lib/openrgb-wrapper.sh` |
+| `udev/60-aura-led.rules` | `/etc/udev/rules.d/60-aura-led.rules` (cần root) |
 | `local/lib/lianli-wrapper.sh` | `~/.local/lib/lianli-wrapper.sh` |
 | `local/bin/apply-rgb` | `~/.local/bin/apply-rgb` |
 | `lianli/config.json` | `~/.config/lianli/config.json` |
@@ -191,7 +194,9 @@ chmod +x ~/.local/lib/lianli-wrapper.sh
 
 ### Bước 6 — Cấp quyền truy cập device
 
-OpenRGB cần đọc `/dev/i2c-*`; Lian Li cần đọc/ghi `/dev/hidraw*`.
+OpenRGB cần đọc `/dev/i2c-*` **và** mở `/dev/hidraw*` của AURA LED Controller
+(mainboard Z690-A được OpenRGB detect qua USB `0b05:19af`, KHÔNG qua i2c).
+Lian Li cần đọc/ghi `/dev/hidraw*` của hub riêng (`0cf2:a100`).
 
 Tạo nhóm `lianli` (cần cho udev rule của Lian Li gán quyền) rồi cho user vào **cả 2 nhóm** `i2c` và `lianli`:
 
@@ -205,10 +210,23 @@ sudo usermod -aG i2c,lianli $USER
 # đăng xuất / đăng nhập lại để áp dụng quyền nhóm mới
 ```
 
-> ℹ️ Có **2 cơ chế** cấp quyền `/dev/i2c-*`:
-> - udev **uaccess** (từ rule của `openrgb-git`) → gán `user:USER:rw` cho user đang đăng nhập — đây là thứ wrapper **kiểm tra** trước
-> - nhóm `i2c` (từ `i2c-tools`) → quyền nhóm dự phòng, hoạt động cả khi không có phiên đăng nhập
-> Wrapper (`openrgb-wrapper.sh`) giờ nhận cả 2: có ACL user **hoặc** quyền đọc/ghi thực tế là OK.
+**Rule udev cho AURA** (trong repo tại `udev/60-aura-led.rules` — copy vào `/etc/udev/rules.d/` với quyền root):
+
+```bash
+sudo cp udev/60-aura-led.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=hidraw
+```
+
+Rule này gán `GROUP="i2c", MODE="0660"` cho hidraw của AURA (`0b05:19af`) —
+**giữ quyền dự phòng qua nhóm i2c**, y như `45-i2c-tools.rules` làm cho `/dev/i2c-*`.
+Nếu thiếu rule này, OpenRGB chỉ mở được AURA sau khi user đăng nhập GUI
+(uaccess ACL), làm mainboard/RAM đổi màu trễ ~1-2 phút sau boot.
+
+> ℹ️ Cơ chế cấp quyền:
+> - **uaccess** (login GUI) → `user:USER:rw` — phát sinh trễ sau boot
+> - **nhóm** `i2c` → quyền có ngay khi node tạo, kể cả trước login
+> Wrapper (`openrgb-wrapper.sh`) nhận cả 2: có ACL user **hoặc** quyền đọc/ghi thực tế là OK.
 
 **Kiểm tra OpenRGB nhận thiết bị:**
 

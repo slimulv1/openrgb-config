@@ -79,9 +79,13 @@ devices_ready() {
     [ "$found" -eq 1 ] && [ "$ok" -eq 1 ] || return 1
     [ -n "$i801" ] || return 1
     kingston_probe "${i801#/dev/i2c-}" || return 1
-    # ASUS Aura hidraw must exist AND be user-accessible (uaccess ACL)
+    # ASUS Aura hidraw must exist AND be user-accessible — either the udev
+    # uaccess ACL ("user:USER:rw", granted at GUI login) or the early group
+    # access from 60-aura-led.rules (GROUP="i2c", MODE="0660", same as
+    # 45-i2c-tools.rules gives the i2c nodes).
     dev="$(aura_hidraw)" || return 1
-    getfacl -p "$dev" 2>/dev/null | grep -qE "^user:${USER}:rw"
+    if getfacl -p "$dev" 2>/dev/null | grep -qE "^user:${USER}:rw"; then return 0; fi
+    [ -r "$dev" ] && [ -w "$dev" ]
 }
 
 _i=0
