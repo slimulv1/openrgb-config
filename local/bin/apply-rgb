@@ -48,16 +48,20 @@ usage() {
         desc="$(grep -m1 '^#' "$f" 2>/dev/null | sed 's/^# *//')"
         printf "  %-14s %s\n" "$name" "${desc:-}"
     done
-    exit 0
 }
 
 if [ "${1:-}" = "--list" ] || [ "${1:-}" = "-l" ]; then
     usage
+    exit 0
 fi
 
 SCHEME="${1:-$DEFAULT_SCHEME}"
 FILE="$SCHEMES_DIR/$SCHEME.rgb"
-[ -f "$FILE" ] || { echo "error: scheme '$SCHEME' not found ($FILE)" >&2; usage; }
+if [ ! -f "$FILE" ]; then
+    echo "error: scheme '$SCHEME' not found ($FILE)" >&2
+    usage
+    exit 1
+fi
 
 # --- Parse INI: globals (before any [section]) + per-section overrides ---
 declare -A GLOBAL        # global key -> value
@@ -98,6 +102,9 @@ mapfile -t DEVICES < <(timeout "$CMD_TIMEOUT" "$OPENRGB" -l 2>/dev/null | grep -
 
 # Apply one OpenRGB invocation. args passed positionally:
 #   zone size mode colors b s   (empty = skip that flag)
+# Exit code: 0 if ALL invocations succeeded; 1 if any failed (used by the
+# boot wrapper to decide restart). Verbose echo mirrors the exact flags.
+FAILED=0
 invoke() {
     local z="$1" sz="$2" mode="$3" colors="$4" b="$5" s="$6"
     local a=("$OPENRGB" -d "$DEVIDX")
@@ -108,7 +115,10 @@ invoke() {
     [ -n "$b" ]       && a+=(-b "$b")
     [ -n "$s" ]       && a+=(-s "$s")
     ((VERBOSE)) && echo "  [$DEVIDX] $DEVTITLE: zone=${z:-all} size=${sz:-} mode=${mode:-} colors=${colors:-} b=${b:-} s=${s:-}" >&2
-    timeout "$CMD_TIMEOUT" "${a[@]}" >/dev/null 2>&1 || echo "    ! openrgb failed for [$DEVIDX] zone=${z:-all}" >&2
+    if ! timeout "$CMD_TIMEOUT" "${a[@]}" >/dev/null 2>&1; then
+        echo "    ! openrgb failed for [$DEVIDX] zone=${z:-all}" >&2
+        FAILED=1
+    fi
 }
 
 apply_device() {
@@ -164,3 +174,5 @@ apply_device() {
 for dev in "${DEVICES[@]}"; do
     apply_device "${dev%%:*}" "${dev#*: }"
 done
+
+exit "$FAILED"

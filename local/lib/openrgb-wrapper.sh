@@ -47,7 +47,8 @@ sdk_list() {
 controller_count() { sdk_list | sed -n 's/^\([0-9]\+\):.*/\1/p' | wc -l; }
 
 devs=""
-for ((_t = 0; _t < DETECT_WAIT_S; _t += 3)); do
+_end=$((SECONDS + DETECT_WAIT_S))
+while ((SECONDS < _end)); do
     sleep 3
     devs="$(sdk_list)"
     n="$(printf '%s\n' "$devs" | grep -cE '^[0-9]+:')" || n=0
