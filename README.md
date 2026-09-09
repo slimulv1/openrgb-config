@@ -19,7 +19,7 @@ Cấu hình RGB lighting cho máy **Core64** dành cho hai hệ: **OpenRGB** (đ
 | Thiết bị | Điều khiển | Ghi chú |
 |----------|------------|---------|
 | **Deepcool LT720 AIO** (pump) | Nối **ARGB Header 1** mainboard → qua zone ASUS (zone 1, cần resize `SIZE=22`) | Pump có RGB; **fan FK120 KHÔNG có RGB** |
-| **Lian Li Uni Hub SL** | `lianli-daemon` (USB `0cf2:a100`, hidraw) | Điều khiển fan hub, KHÔNG qua OpenRGB |
+| **Lian Li Uni Hub SL v1 + 5× fan SL120 v1** | `lianli-daemon` (USB `0cf2:a100` = ENE LianLi-UNI FAN-SL-v1.8, hidraw) | Điều khiển fan hub + LED fan SL120, KHÔNG qua OpenRGB |
 
 ---
 
@@ -250,7 +250,7 @@ apply-rgb --list      # liệt kê scheme
 
 ### Bước 7 — Cấu hình Lian Li (device + fan curve)
 
-Cấu hình hiện tại (đã copy ở Bước 4 vào `~/.config/lianli/`):
+Cấu hình hiện tại dành cho **hub UNI Hub SL v1 + fan SL120 v1** (USB `0cf2:a100` — ENE LianLi-UNI FAN-SL-v1.8). Đã copy ở Bước 4 vào `~/.config/lianli/`:
 - **`config.json`** — fan curve, tốc độ fan, backend `hidraw`, FPS…
 - **`rgb_presets.json`** — các preset màu cho fan hub
 
