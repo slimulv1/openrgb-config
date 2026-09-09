@@ -37,6 +37,7 @@ SCHEMES_DIR="${OPENRGB_SCHEMES:-$HOME/.config/openrgb/schemes}"
 DEFAULT_SCHEME="${OPENRGB_DEFAULT_SCHEME:-white}"
 OPENRGB="${OPENRGB_BIN:-openrgb}"
 VERBOSE="${APPLY_RGB_VERBOSE:-0}"
+CMD_TIMEOUT="${OPENRGB_TIMEOUT:-15}"
 
 usage() {
     echo "Usage: apply-rgb [--list | <scheme>]"
@@ -92,7 +93,8 @@ while IFS= read -r line; do
 done < "$FILE"
 
 # --- Resolve device list at runtime ---
-mapfile -t DEVICES < <("$OPENRGB" -l 2>/dev/null | grep -E '^[0-9]+:')
+mapfile -t DEVICES < <(timeout "$CMD_TIMEOUT" "$OPENRGB" -l 2>/dev/null | grep -E '^[0-9]+:')
+[ "${#DEVICES[@]}" -gt 0 ] || { echo "error: no devices listed by openrgb -l" >&2; exit 1; }
 
 # Apply one OpenRGB invocation. args passed positionally:
 #   zone size mode colors b s   (empty = skip that flag)
@@ -106,7 +108,7 @@ invoke() {
     [ -n "$b" ]       && a+=(-b "$b")
     [ -n "$s" ]       && a+=(-s "$s")
     ((VERBOSE)) && echo "  [$DEVIDX] $DEVTITLE: zone=${z:-all} size=${sz:-} mode=${mode:-} colors=${colors:-} b=${b:-} s=${s:-}" >&2
-    "${a[@]}" >/dev/null 2>&1 || echo "    ! openrgb failed for [$DEVIDX] zone=${z:-all}" >&2
+    timeout "$CMD_TIMEOUT" "${a[@]}" >/dev/null 2>&1 || echo "    ! openrgb failed for [$DEVIDX] zone=${z:-all}" >&2
 }
 
 apply_device() {

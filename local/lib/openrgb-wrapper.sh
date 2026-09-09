@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Wait for I2C ACL readiness, launch OpenRGB, verify controller detection.
-# Exit 1 if 0 controllers → systemd Restart=retries until hardware is ready.
+# Wait for I2C ACL readiness, launch OpenRGB server, then POLL the SDK until
+# ALL expected controllers are enumerated (not counting from log files, which
+# are written asynchronously and caused missed devices on boot). Then apply
+# the color scheme and VERIFY the controllers are still alive.
+# Exit 1 on failure → systemd Restart=always retries until hardware is ready.
 set -u
 
 BIN="${OPENRGB_BIN:-/usr/bin/openrgb}"
-LOGDIR="${XDG_CONFIG_HOME:-$HOME/.config}/OpenRGB/logs"
 SCHEME="${OPENRGB_SCHEME:-white}"
 APPLY_RGB="${APPLY_RGB:-$HOME/.local/bin/apply-rgb}"
 I2C_WAIT_S="${I2C_WAIT_S:-30}"
-DETECT_WAIT_S="${DETECT_WAIT_S:-15}"
-MIN_CONTROLLERS="${MIN_CONTROLLERS:-1}"
+DETECT_WAIT_S="${DETECT_WAIT_S:-60}"
+EXPECT_CONTROLLERS="${EXPECT_CONTROLLERS:-3}"
+CMD_TIMEOUT="${OPENRGB_TIMEOUT:-15}"
 
 # --- Wait for /dev/i2c-* ACL (race after session restart) ---
 i2c_ready() {
@@ -34,20 +37,39 @@ done
 # --- Launch OpenRGB server (no profile; scheme applied after detection) ---
 "$BIN" --server --noautoconnect &
 PID=$!
-sleep "$DETECT_WAIT_S"
 
-# Count detected controllers from latest log
-LATEST_LOG="$(ls -1t "$LOGDIR"/OpenRGB_*.log 2>/dev/null | head -1)"
-CONTROLLERS=0
-[ -n "$LATEST_LOG" ] && CONTROLLERS="$(grep -c 'Registering RGB controller' "$LATEST_LOG" 2>/dev/null || true)"
+# --- Poll the SDK device list until all expected controllers appear ---
+# (openrgb -l talks to the running server; network protocol is deterministic,
+#  unlike scraping OpenRGB log files which are flushed asynchronously)
+sdk_list() {
+    timeout "$CMD_TIMEOUT" "$BIN" -l 2>/dev/null | grep -E '^[0-9]+:'
+}
+controller_count() { sdk_list | sed -n 's/^\([0-9]\+\):.*/\1/p' | wc -l; }
 
-if ((CONTROLLERS >= MIN_CONTROLLERS)); then
-    # Detection OK → apply default color scheme via apply-rgb
-    "$APPLY_RGB" "$SCHEME" >/dev/null 2>&1
-    logger -t openrgb-wrapper "OK: ${CONTROLLERS} controllers; applied scheme '$SCHEME'"
-    exit 0
+devs=""
+for ((_t = 0; _t < DETECT_WAIT_S; _t += 3)); do
+    sleep 3
+    devs="$(sdk_list)"
+    n="$(printf '%s\n' "$devs" | grep -cE '^[0-9]+:')" || n=0
+    ((n >= EXPECT_CONTROLLERS)) && break
+done
+
+n="$(printf '%s\n' "$devs" | grep -cE '^[0-9]+:')" || n=0
+if ((n >= EXPECT_CONTROLLERS)); then
+    if ! "$APPLY_RGB" "$SCHEME" >/dev/null 2>&1; then
+        logger -t openrgb-wrapper "FAIL apply-rgb '$SCHEME' after ${n} controllers"
+        kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null
+        exit 1
+    fi
+    # Verify controllers still alive after scheme application
+    after="$(controller_count)"
+    logger -t openrgb-wrapper "OK: ${n} controllers; applied scheme '$SCHEME'"
+    ((after >= EXPECT_CONTROLLERS)) && exit 0
+    logger -t openrgb-wrapper "WARN: only ${after} controllers after apply"
+    kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null
+    exit 1
 fi
 
-logger -t openrgb-wrapper "Only ${CONTROLLERS} controllers (need >= ${MIN_CONTROLLERS})"
+logger -t openrgb-wrapper "Only ${n} controllers (need >= ${EXPECT_CONTROLLERS})"
 kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null
 exit 1
